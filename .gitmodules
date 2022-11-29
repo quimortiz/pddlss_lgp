@@ -1,0 +1,6 @@
+[submodule "rai"]
+	path = rai
+	url = git@git.tu-berlin.de:lis/rai.git
+[submodule "rai-robotModels"]
+	path = rai-robotModels
+	url = git@github.com:MarcTOussaint/rai-robotModels.git
