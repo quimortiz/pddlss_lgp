@@ -996,35 +996,34 @@ BOOST_AUTO_TEST_CASE(grasp_models) {
 
 BOOST_AUTO_TEST_CASE(small_vs_big_table) {
 
-  // TODO: evalute which are the 10 first solutions if I use "tabu plans" or
-  // not. Compare the path when changing the size of the table. Also, example
-  // with TOOL. indicate if the solution has been conditioned check that i don't
-  // use the same conditioning twice for the same expand operation. Evaluate in
-  // a setting with conflicts. Allow for computing only a grasp or a pose. Which
-  // is the heursitic in this case? Clear interface between subgraphs and
-  // variables.
-
+  std::string timesstamp = get_time_stamp();
   int argc = boost::unit_test::framework::master_test_suite().argc;
   char **argv = boost::unit_test::framework::master_test_suite().argv;
 
-  // openConfigFile(const char* name) {
-
-  namespace po = boost::program_options;
-
-  std::string timesstamp = get_time_stamp();
-  int visualize = 0;
-  bool interactive = false;
-  double table_size = .2;
-  rai::String base_path = "small_vs_big_table/" + rai::String(timesstamp) + "/";
-
   rai::initCmdLine(argc, argv);
   rai::setParameter<bool>("KOMO/mimicStable", false);
-  visualize = rai::getParameter<int>("vis", visualize);
-  interactive = rai::getParameter<bool>("interactive", interactive);
-  table_size = rai::getParameter<double>("table_size", table_size);
+
+  bool interactive = rai::getParameter<bool>("interactive", false);
+  const bool check_plan = rai::getParameter<bool>("check_plan", false);
+  const bool solve_gnlp = rai::getParameter<bool>("solve_gnlp", false);
+  const bool solve_ssgnlp = rai::getParameter<bool>("solve_ssgnlp", true);
+
+  int visualize = rai::getParameter<int>("vis", 0);
   int seed = rai::getParameter<int>("seed", 0);
-  base_path = rai::getParameter<rai::String>(
+
+  double table_size = rai::getParameter<double>("table_size", -1.);
+
+  rai::String base_path = rai::getParameter<rai::String>(
       "base_path", "small_vs_big_table/" + rai::String(timesstamp));
+  bool visualize_solutions = rai::getParameter<bool>("vs", false);
+  rai::String folFile =
+      rai::getParameter<rai::String>("folFile", "./fol_lab_bench_auto.g");
+  rai::String confFile =
+      rai::getParameter<rai::String>("confFile", "./models/table_experiment.g");
+  rai::String goalFile = rai::getParameter<rai::String>("goalFile", "NONE");
+  rai::String goal = rai::getParameter<rai::String>("goal", "NONE");
+  rai::String plan = rai::getParameter<rai::String>("plan", "NONE");
+  rai::String plan_file = rai::getParameter<rai::String>("plan_file", "NONE");
 
   if (base_path.getLastN(1) != "/")
     base_path = base_path + "/";
@@ -1032,112 +1031,92 @@ BOOST_AUTO_TEST_CASE(small_vs_big_table) {
   rai::setParameter<rai::String>("out_file_benchmark",
                                  base_path + "__benchmark.txt");
 
-  std::cout << "base path is " << base_path << std::endl;
   std::filesystem::create_directories(base_path.p);
 
   CONFLICT_FOLDER = base_path.p + CONFLICT_FOLDER;
   PATH_FEASIBLE_SAMPLES = base_path.p + PATH_FEASIBLE_SAMPLES;
 
   std::cout << "time " << timesstamp << std::endl;
-
   std::cout << "** parsed parameters:\n" << rai::getParameters() << '\n';
 
-  if (seed >= 0)
+  if (seed >= 0) {
     srand(seed);
-  else {
+    rnd.seed(seed);
+  } else {
     srand(time(NULL));
+    rnd.seed(time(NULL));
   }
 
-  bool visualize_solutions = rai::getParameter<bool>("vs", false);
-
-  // rai::initParameters(argc,argv);
-  // std::string komo_cfg = "";
-  //
-  // po::options_description desc("Allowed options");
-  // desc.add_options()("help", "produce help message")(
-  //     "vis", po::value<int>(&visualize)->default_value(visualize))(
-  //     "interactive",
-  //     po::value<int>(&interactive)->default_value(interactive))(
-  //     "table_size",
-  //     po::value<double>(&table_size)->default_value(table_size))( "komo_cfg",
-  //     po::value<std::string>(&komo_cfg)->default_value(komo_cfg));
-  //
-  //
-  //
-  // po::variables_map vm;
-  // po::store(po::parse_command_line(argc, argv, desc), vm);
-  // po::notify(vm);
-  //
-  // if (vm.count("help")) {
-  //   cout << desc << "\n";
-  //   BOOST_TEST(false);
-  // }
-
-  // rai::setParameter<bool>("KOMO/mimicStable", false);
-  // rai::initCmdLine(argc,argv);
-  // rai::initParameters(0,nullptr);
-  // rai::setParameter<bool>("KOMO/mimicStable", false);
-
-  // if (komo_cfg != "") {
-  //
-  //   std::cout << "using komo config file" << std::endl;
-  //   std::cout <<"opening config file '" << komo_cfg <<"'";
-  // ifstream fil;
-  // fil.open(komo_cfg);
-  // if(fil.good()) {
-  //   fil >>rai::getParameters();
-  //     std::cout << " - success";
-  // } else {
-  //   LOG(3) <<" - failed";
-  // }
-  // fil.close();
-  //
-  //
-  //
-  // }
-
-  // rai::setParameter<int>("opt/verbose", 5);
-
-  rai::String folFile = "./fol_lab_bench_auto.g";
-  rai::String confFile = "./models/table_experiment.g";
-
-  rai::String goal = "(on goal_table block1) (on goal_table block2)";
-  rai::String plan = "(pick block1 block1_ref r_gripper)\n(placeontable block1 "
-                     "r_gripper goal_table)\n"
-                     "(pick block2 block2_ref r_gripper)\n"
-                     "(placeontable block2 r_gripper goal_table)\n";
-  // "(pick block3 block3_ref r_gripper)\n"
-  // "(placeontable block3 r_gripper goal_table)\n";
+  if (plan == "NONE") {
+    if (plan != "NONE") {
+      std::ifstream file(plan_file);
+      std::string plan_str;
+      plan_str = std::string((std::istreambuf_iterator<char>(file)),
+                             std::istreambuf_iterator<char>());
+      plan = plan_str.c_str();
+    }
+  }
+  std::cout << "parsed plan is " << std::endl << plan << std::endl;
 
   rai::Configuration C;
+  std::cout << "loading config file " << confFile << std::endl;
+
+  // check that files exists
+
+  if (!std::filesystem::exists(folFile.p)) {
+    std::cout << "file:" << folFile << " does not exist" << std::endl;
+    exit(0);
+  }
+
+  if (!std::filesystem::exists(confFile.p)) {
+    std::cout << "file:" << confFile << " does not exist" << std::endl;
+    exit(0);
+  }
+
+  // throw -1;
+
   C.addFile(confFile);
-  auto f = C.getFrame("goal_table");
 
-  f->setShape(rai::ST_ssBox, {table_size, table_size, .04, .01});
-  // f->setShape(rai::ST_ssBox, {.07, .07, .04, .01});
+  // TODO: refactor!!!
 
-  // TODO: I need option to create SOS cost, on the init guess
-  // of the placement of objects. (and grasps?) -- I could do the
-  // same for top grasp with one parameter :)
+  if (table_size > 0) {
+    // in the first problem, i can change the shape of the table number 0
+    if (auto f = C.getFrame("goal_table", false); f)
+      f->setShape(rai::ST_ssBox, {table_size, table_size, .04, .01});
+
+    // in the second problem, i can change the shape of the table number 1
+    if (auto f = C.getFrame("goal1_table", false); f)
+      f->setShape(rai::ST_ssBox, {table_size, table_size, .04, .01});
+  }
 
   if (visualize)
     C.view(true);
 
-  bool generate_auto = true;
-  rai::LGP_Tree lgp(C, folFile, generate_auto);
-  lgp.fol.addTerminalRule(goal);
+  bool generate_auto = false;
+  if (folFile.contains("auto"))
+    generate_auto = true;
 
-  const bool check_plan = false;
-  const bool solve_gnlp = false;
-  const bool solve_ssgnlp = true;
+  rai::LGP_Tree lgp(C, folFile, generate_auto);
+
+  if (goal != "NONE") {
+    lgp.fol.addTerminalRule(goal);
+  } else if (goalFile != "NONE") {
+    std::ifstream file(goalFile);
+    std::string goal_str = std::string((std::istreambuf_iterator<char>(file)),
+                                       std::istreambuf_iterator<char>());
+    std::cout << "GOAL IS " << goal_str << std::endl;
+    lgp.fol.addTerminalRule(goal_str.c_str());
+  }
 
   if (check_plan) {
+    CHECK(plan != "NONE", "no plan specified");
+    std::cout << "plan is " << plan << std::endl;
     auto node = lgp.walkToNode(plan);
 
-    StringAA collision_list = {{"f_block1_col"}, {"f_block2_col"},
-                               {"f_block3_col"}, {"f_block4_col"},
-                               {"f_block5_col"}, {"f_block6_col"}};
-
+    StringAA collision_list = {
+        {"f_block1_col"}, {"f_block2_col"},  {"f_block3_col"},
+        {"f_block4_col"}, {"f_block5_col"},  {"f_block6_col"},
+        {"obs_1"},        {"col_l_gripper"}, {"col_r_gripper"}};
     StringAA collision_list_here = {};
 
     for (auto &c : collision_list) {
@@ -1145,6 +1124,8 @@ BOOST_AUTO_TEST_CASE(small_vs_big_table) {
       if (C.getFrame(c(0)))
         collision_list_here.append(c);
     }
+
+    std::cout << "collision list is " << collision_list_here << std::endl;
 
     auto [graph, factored_nlp] = get_nlps_and_graph(node, collision_list_here);
 
@@ -1163,11 +1144,15 @@ BOOST_AUTO_TEST_CASE(small_vs_big_table) {
     factored_nlp->subSelect({}, {});
     auto out = NLP_Solver().setProblem(factored_nlp).solve();
 
+    factored_nlp->komo.view_play(true);
+
     std::cout << *out << std::endl;
     std::cout << "***" << std::endl;
 
     // factored_nlp->komo.view(true);
     // factored_nlp->komo.view_play(true);
+
+    return;
   }
   if (solve_gnlp) {
     // solve using Graph NLP
@@ -1184,10 +1169,10 @@ BOOST_AUTO_TEST_CASE(small_vs_big_table) {
 
     OptGraphLGP opt{
         .lgp = &lgp,
-        .obsFile = "none",
+        .obsFile = rai::getParameter<rai::String>("obsFile", "none"),
         .obsFilePairs = "none",
         .verbosity = 0,
-        .visualize = false,
+        .visualize = static_cast<bool>(visualize),
         .path_to_downward_folder = PATH_TO_DOWNWARD_FOLDER,
         .path_to_utils = "../rai/utils",
         .id = "qq",
@@ -1203,6 +1188,7 @@ BOOST_AUTO_TEST_CASE(small_vs_big_table) {
 
     std::cout << out.first << " " << out.second << std::endl;
     BOOST_CHECK(out.first);
+    return;
   }
   if (solve_ssgnlp) {
     // solve using ssgnlp
@@ -1231,16 +1217,28 @@ BOOST_AUTO_TEST_CASE(small_vs_big_table) {
 
     compu_tree.visualize_solution = visualize > 0;
     compu_tree.max_depth_discrete =
-        rai::getParameter<int>("ct/max_depth_discrete", 4);
+        rai::getParameter<int>("ct/max_depth_discrete", 10);
     compu_tree.max_it = rai::getParameter<int>("ct/max_it", 100);
-    compu_tree.heuristic = HEURISTIC::BEST_PATH_COMPU_TIE;
-    compu_tree.max_num_goals = rai::getParameter<int>("ct/max_num_goals", 5);
+
+    rai::String heu_str =
+        rai::getParameter<rai::String>("ct/heuristic", "BEST_PATH_COMPU_TIE");
+
+    compu_tree.heuristic = magic_enum::enum_cast<HEURISTIC>(heu_str.p).value();
+
+    compu_tree.max_num_goals = rai::getParameter<int>("ct/max_num_goals", 1);
     compu_tree.root = &croot;
     compu_tree.open_nodes = {&croot};
     compu_tree.interactive = interactive;
     compu_tree.block_found_plans =
         rai::getParameter<bool>("ct/block_found_plans", false);
-    compu_tree.search();
+    Exit_search status;
+    try {
+      status = compu_tree.search();
+    } catch (std::exception &e) {
+      std::cout << "ERROR " << std::endl;
+      std::cout << e.what() << std::endl;
+      status = Exit_search::error;
+    }
 
     {
       rai::String file_report = base_path + "__report.txt";
@@ -1249,24 +1247,32 @@ BOOST_AUTO_TEST_CASE(small_vs_big_table) {
       if (compu_tree.goals.size()) {
         std::cout << "problem solved! " << std::endl;
         report_out << "solved: " << 1 << std::endl;
+        using namespace magic_enum::ostream_operators;
+        report_out << "exit_status: " << status << std::endl;
       } else {
         report_out << "solved: " << 0 << std::endl;
+        using namespace magic_enum::ostream_operators;
+        report_out << "exit_status: " << status << std::endl;
       }
     }
-    BOOST_ASSERT(compu_tree.goals.size());
 
     {
       std::ofstream file(base_path + "g.dot");
       tree_to_graphviz(file, &croot);
+      file.close();
 
       std::ofstream file2(base_path + "g_.dot");
       tree_to_graphviz(file2, &croot, true);
+      file2.close();
+
+      system_s(
+          ("dot -Tpdf " + base_path + "g.dot -o " + base_path + "g.pdf").p);
+
+      system_s(
+          ("dot -Tpdf " + base_path + "g_.dot -o " + base_path + "g_.pdf").p);
     }
 
-    system_s(("dot -Tpdf " + base_path + "g.dot -o " + base_path + "g.pdf").p);
-
-    system_s(
-        ("dot -Tpdf " + base_path + "g_.dot -o " + base_path + "g_.pdf").p);
+    BOOST_TEST(compu_tree.goals.size());
 
     // print the solutions
 
@@ -1498,3 +1504,62 @@ BOOST_AUTO_TEST_CASE(new_warmstart) {
 
   // check the warmstart of MARC.
 }
+#if 0
+BOOST_AUTO_TEST_CASE(two_robots) {
+
+
+  int argc = boost::unit_test::framework::master_test_suite().argc;
+  char **argv = boost::unit_test::framework::master_test_suite().argv;
+
+  std::string timesstamp = get_time_stamp();
+  int visualize = 0;
+  bool interactive = false;
+  double table_size = .2;
+  rai::String base_path = "exp_two_robots/" + rai::String(timesstamp) + "/";
+
+  rai::initCmdLine(argc, argv);
+  rai::setParameter<bool>("KOMO/mimicStable", false);
+
+  visualize = rai::getParameter<int>("vis", visualize);
+  interactive = rai::getParameter<bool>("interactive", interactive);
+  table_size = rai::getParameter<double>("table_size", table_size);
+  int seed = rai::getParameter<int>("seed", 0);
+  base_path = rai::getParameter<rai::String>(
+      "base_path", "small_vs_big_table/" + rai::String(timesstamp));
+
+
+  rai::String folFile = "fol_lab_bench_two_one_object.g";
+  rai::String confFile = "./lab_setting_two_two_objects.g";
+
+  if (seed >= 0)
+    srand(seed);
+  else {
+    srand(time(NULL));
+  }
+
+  rai::Configuration C;
+
+  rai::String goal = "(on goal1_table block1) (on block1 block2)";
+  rai::String plan = "(pick block1 block1_ref r_gripper)\n(place block1 "
+                     "r_gripper goal1_table)\n(pick block2 block2_ref "
+                     "r_gripper)\n(place block2 r_gripper block1)";
+
+
+  // try to solve with nonlinear optimization 
+  C.addFile(confFile);
+  if (visualize)
+    C.view(true);
+
+  rai::LGP_Tree lgp(C, folFile);
+  lgp.fol.addTerminalRule(goal);
+
+
+
+
+
+
+
+
+}
+
+#endif

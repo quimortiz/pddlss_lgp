@@ -48,7 +48,7 @@ r_gripper
 l_gripper 
 goal1_table
 # goal2_table
-goal3_table
+# goal3_table
 # obstacle
 
 
@@ -63,8 +63,8 @@ START_STATE {
 (is_box goal1_table)
 (is_sky goal1_table) 
 
-(is_box goal3_table)
-(is_sky goal3_table) 
+# (is_box goal3_table)
+# (is_sky goal3_table) 
 
 # (is_box goal2_table)
 # (is_sky goal2_table) 

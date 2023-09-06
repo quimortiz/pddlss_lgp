@@ -42,8 +42,8 @@ liftDownUp
 
 
 # objects
-block1 , block2 
-block1_ref,  block2_ref
+block1 
+block1_ref
 r_gripper 
 l_gripper 
 goal1_table
@@ -72,16 +72,13 @@ START_STATE {
 # whether the robot can move or not the big boxes.
 
 (is_object block1) 
-(is_object block2) 
 
 
 
-# (is_box block1) 
-# (is_box block2) 
+(is_box block1) 
 
 
 (is_sky block1) 
-(is_sky block2) 
 
 
 
@@ -105,16 +102,13 @@ START_STATE {
 
 
 (stable block1_ref block1 )
-(stable block2_ref block2 )
 
 
 
 (on block1_ref block1 )
-(on block2_ref block2 )
 
 
 (poseEq block1_ref block1 )
-(poseEq block2_ref block2 )
 
 
 

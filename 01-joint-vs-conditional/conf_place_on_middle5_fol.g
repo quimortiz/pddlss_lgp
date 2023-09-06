@@ -42,13 +42,17 @@ liftDownUp
 
 
 # objects
-block1 , block2 
-block1_ref,  block2_ref
+block1, block2 
+block1_ref, block2_ref
+
+block3, block4 , block5
+block3_ref, block4_ref , block5_ref
+
 r_gripper 
 l_gripper 
 goal1_table
 # goal2_table
-goal3_table
+# goal3_table
 # obstacle
 
 
@@ -63,8 +67,8 @@ START_STATE {
 (is_box goal1_table)
 (is_sky goal1_table) 
 
-(is_box goal3_table)
-(is_sky goal3_table) 
+# (is_box goal3_table)
+# (is_sky goal3_table) 
 
 # (is_box goal2_table)
 # (is_sky goal2_table) 
@@ -74,6 +78,9 @@ START_STATE {
 (is_object block1) 
 (is_object block2) 
 
+(is_object block3) 
+(is_object block4) 
+(is_object block5) 
 
 
 # (is_box block1) 
@@ -83,6 +90,9 @@ START_STATE {
 (is_sky block1) 
 (is_sky block2) 
 
+(is_sky block3) 
+(is_sky block4) 
+(is_sky block5) 
 
 
 
@@ -104,10 +114,19 @@ START_STATE {
 (is_gripper l_gripper)
 
 
+(stable block3_ref block3 )
+(stable block4_ref block4 )
+(stable block5_ref block5 )
+
+
+
 (stable block1_ref block1 )
 (stable block2_ref block2 )
 
 
+(on block3_ref block3 )
+(on block4_ref block4 )
+(on block5_ref block5 )
 
 (on block1_ref block1 )
 (on block2_ref block2 )
@@ -118,6 +137,9 @@ START_STATE {
 
 
 
+(poseEq block3_ref block3 )
+(poseEq block4_ref block4 )
+(poseEq block5_ref block5 )
 
 
 

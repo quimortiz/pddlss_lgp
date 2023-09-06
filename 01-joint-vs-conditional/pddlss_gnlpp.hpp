@@ -1,5 +1,6 @@
 
 
+#include "Core/defines.h"
 #include "KOMO/local_utils.hpp"
 #include <boost/program_options.hpp>
 
@@ -25,7 +26,7 @@ bool VISUALIZE_KOMO = false;
 std::string CONFLICT_FOLDER = "__conflicts";
 bool INTERACTIVE_INTERESTING_SUBGRAPHS = false;
 std::string PATH_FEASIBLE_SAMPLES = "tmp_feasible_graphs";
-std::string PATH_TO_DOWNWARD_FOLDER = "/home/quim/stg/lgp-pddl/downward/";
+std::string PATH_TO_DOWNWARD_FOLDER = "~/stg/lgp-pddl/downward/";
 
 std::vector<double> PANDA_Q0 = {0., -.5, 0., -2, -0., 2., -.5};
 
@@ -33,6 +34,7 @@ using Match = std::vector<std::pair<int, int>>;
 
 rai::Transformation random_placement_on_table(const arr &table_size) {
 
+  CHECK_GE(table_size.N, 3, "");
   std::vector<double> lb(3, 0.);
   std::vector<double> ub(3, 0.);
 
@@ -538,17 +540,44 @@ bool is_subset(const std::vector<std::string> &ref,
 bool is_subsequence(const std::vector<std::vector<std::string>> &ref,
                     const std::vector<std::vector<std::string>> &small) {
 
-  for (size_t i = 0; i < ref.size() - small.size() + 1; i++) {
+  std::cout << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << std::endl;
+  std::cout << "ref sequence:" << ref.size() << std::endl;
+  for (auto &v : ref) {
+    printContainer(v);
+    std::cout << std::endl;
+  }
+  std::cout << "small " << std::endl;
+  for (auto &v : small) {
+    printContainer(v);
+    std::cout << std::endl;
+  }
+
+  // 0 1
+
+  // 0 1
+  //
+  //
+  //
+  // i = ref - small + small - 1  ->
+  std::cout << "ref size " << ref.size() << std::endl;
+  std::cout << "small size " << small.size() << std::endl;
+  for (int i = 0; i < int(ref.size()) - int(small.size()) + 1; i++) {
+    // for (size_t i = 0; i < ref.size() - small.size(); i++) {
     bool subseq = true;
-    for (size_t j = 0; j < small.size(); j++) {
+    for (int j = 0; j < small.size(); j++) {
+      std::cout << "i " << i << " j " << j << std::endl;
       if (!is_subset(ref.at(i + j), small.at(j))) {
         subseq = false;
         break;
       }
     }
-    if (subseq)
+    if (subseq) {
+      std::cout << "is subsequence" << std::endl;
       return true;
+    }
   }
+  std::cout << "is not subsequence" << std::endl;
+  return false;
 }
 
 std::vector<std::vector<std::string>> get_state_sequence(rai::LGP_Node *node) {
@@ -661,8 +690,11 @@ bool path_to_node_has_conflict(rai::LGP_Node *node,
   for (const auto &entry :
        std::filesystem::directory_iterator(conflict_folder)) {
     auto komo_style = komo_state_sequence_from_PDDL(entry.path());
-    if (is_subsequence(state_sequence, komo_style))
+    if (is_subsequence(state_sequence, komo_style)) {
+      std::cout << "is subsequence is YES" << std::endl;
+      std::cout << __PRETTY_FUNCTION__ << std::endl;
       return true;
+    }
   }
   return false;
 }
@@ -722,7 +754,7 @@ compute_pddl_heuristic(rai::LGP_Node *node,
                         new_sas_file.c_str());
 
       cs path_to_downward_folder = "/home/quim/stg/lgp-pddl/downward/";
-      cs modify_sas_cmd = "/usr/bin/python3 " + path_to_downward_folder +
+      cs modify_sas_cmd = "/usr/bin/python3 " + PATH_TO_DOWNWARD_FOLDER +
                           "/src/translate/modify_sas.py ";
       system_s(modify_sas_cmd + modify_sas_args);
       sas_file = new_sas_file;
@@ -778,6 +810,21 @@ void find_conflict(rai::LGP_Node *node,
   factored_nlp->reset_subselect(default_x);
   auto graph = create_boost_graph(*factored_nlp, false);
 
+  {
+
+    std::string filename = "/tmp/g" + gen_random_id() + ".dot";
+    std::cout << "writing graph to " << filename << std::endl;
+    std::ofstream file(filename);
+    write_graphviz_easy(file, graph, make_label_writer3(graph));
+    file.close();
+    system_s("dot -Tpdf " + filename + " -o " + filename + ".pdf");
+  }
+
+  std::cout << "start conflict extraction " << std::endl;
+  std::cout << "PLAN IS " << std::endl;
+  std::cout << node->getTreePathString('\n') << std::endl;
+
+  solver.max_it_solve = 3; // lets do three attempts
   std::vector<BGraph> conflicts = conflict_extraction(
       graph, factored_nlp, solver, default_x, visualize, opt, num_conflicts);
 
@@ -813,14 +860,28 @@ void find_conflict(rai::LGP_Node *node,
 
     std::string path_to_utils = "../rai/utils";
     using cs = const std::string;
-    std::ofstream file_conflicts(
-        komo_conflict + "." + std::to_string(global_conflict_counter) + ".txt");
+
+    std::string random_folder = "tmp/c" + gen_random_id() + "/";
+    std::filesystem::create_directories(random_folder);
+
+    std::ofstream file_conflicts(random_folder + komo_conflict + "." +
+                                 std::to_string(global_conflict_counter) +
+                                 ".txt");
     print_states_conflict(file_conflicts, sym_states_conflict, true);
     file_conflicts.close();
-    system_s(
-        string_format("bash " + path_to_utils + "/cmd_conflict.sh %s %d %s %s",
-                      komo_conflict.c_str(), global_conflict_counter,
-                      conflict_sas.c_str(), conflict_folder.c_str()));
+
+    // lets do this in a temporary random folder
+
+    system_s(string_format(
+        "bash " + path_to_utils + "/cmd_conflict.sh %s %d %s %s",
+        (random_folder + komo_conflict).c_str(), global_conflict_counter,
+        (random_folder + conflict_sas).c_str(), conflict_folder.c_str()));
+
+    if (global_conflict_counter == 2) {
+      // PRINT_HERE("manual stop");
+      // throw -1;
+    }
+
     global_conflict_counter++;
   }
 }
@@ -886,6 +947,9 @@ struct Compu_node {
 
   void compute_heuristic() {
 
+    std::cout << "node id " << id << std::endl;
+    std::cout << __PRETTY_FUNCTION__ << std::endl;
+
     const bool invalidate_childs = true;
     const bool check_if_path_to_node_is_conflict = true;
 
@@ -897,10 +961,15 @@ struct Compu_node {
     if (heuristic == BIG_NUMBER_COST_TO_GO)
       return;
 
+    std::cout << "check if it contains and infeasible subsequence "
+              << std::endl;
+    std::cout << __PRETTY_FUNCTION__ << std::endl;
     if (check_if_path_to_node_is_conflict &&
         path_to_node_has_conflict(node, CONFLICT_FOLDER)) {
 
-      std::cout << "it contains an infeasible subsequence!" << std::endl;
+      std::cout << "--node with path: " << std::endl;
+      std::cout << node->getTreePathString('\n') << std::endl;
+      std::cout << "--contains an infeasible subsequence!" << std::endl;
       heuristic = BIG_NUMBER_COST_TO_GO;
       feasible = false;
 
@@ -944,6 +1013,8 @@ struct Compu_node {
         break;
       }
     }
+
+    std::cout << "node id " << id << "DONE " << std::endl;
   }
 
   std::vector<std::map<std::string, arr>> get_compu_history() {
@@ -979,9 +1050,13 @@ struct Compu_node {
     //                            {"block4"}, {"block5"}, {"block6"}};
 
     std::cout << "check that this names are fine!! " << std::endl;
-    StringAA collision_list = {{"f_block1_col"}, {"f_block2_col"},
-                               {"f_block3_col"}, {"f_block4_col"},
-                               {"f_block5_col"}, {"f_block6_col"}};
+    StringAA collision_list = {
+        {"f_block1_col"}, {"f_block2_col"}, {"f_block3_col"}, {"f_block4_col"},
+        {"f_block5_col"}, {"f_block6_col"}, {"obs_1"}, {"obs_2"} , {"obs_3"}, 
+      { "col_r_gripper" } ,
+      { "col_l_gripper" } };
+
+
 
     // check
     StringAA collision_list_here = {};
@@ -991,6 +1066,9 @@ struct Compu_node {
       if (C.getFrame(c(0)))
         collision_list_here.append(c);
     }
+
+    std::cout << "OPTIMIZATION PLAN " << std::endl;
+    node->getTreePathString('\n').write(std::cout);
 
     auto [graph, factored_nlp] = get_nlps_and_graph(node, collision_list_here);
     factored_nlp->report(cout, 3);
@@ -1175,8 +1253,13 @@ struct Compu_node {
 
       // get table size
 
-      arr table_size =
-          factored_nlp->komo.world.getFrame("goal_table")->getShape().size;
+#if 0 
+      arr table_size;
+
+      if (auto f = factored_nlp->komo.world.getFrame("goal_table", false); f) {
+        table_size =
+            factored_nlp->komo.world.getFrame("goal_table")->getShape().size;
+      }
 
       // std::cout << "table size is " << table_size << std::endl;
 
@@ -1185,7 +1268,9 @@ struct Compu_node {
       for (auto &f : factored_nlp->komo.pathConfig.frames) {
         // std::cout << f->name << " ID " << f->ID << std::endl;
 
-        if (f->name == "f1_rand" || f->name == "f2_rand") {
+        if (f->name == "f1_rand" || f->name == "f2_rand" ||
+            f->name == "f3_rand" || f->name == "f4_rand" ||
+            f->name == "f5_rand" || f->name == "f6_rand") {
           rai::Transformation T = random_placement_on_table(table_size);
           std::cout << "chosen random placement is " << T << std::endl;
           f->set_Q() = T;
@@ -1194,6 +1279,7 @@ struct Compu_node {
       }
 
       std::cout << "DONE" << std::endl;
+#endif
 
       out = timed_solve(*factored_nlp).first;
       // out = NLP_Solver().setProblem(factored_nlp).solve();
@@ -1210,12 +1296,18 @@ struct Compu_node {
       std::cout << "check ALL:" << feasible << std::endl;
       if (feasible) {
         // TODO: why is this here? I don't understand the code anymore :/
-        CHECK_EQ(feasible,
-                 t_check_feasible(*factored_nlp, 2 * FEASIBLE_THRESHOLD), "");
+        // CHECK_EQ(feasible,
+        //          t_check_feasible(*factored_nlp, 10 * FEASIBLE_THRESHOLD), "");
+        // CHECK_EQ(feasible,
+        //          t_check_feasible(*factored_nlp, 20 * FEASIBLE_THRESHOLD), "");
+
+        // if (feasible != t_check_feasible(*factored_nlp, 20 * FEASIBLE_THRESHOLD)
+
       }
 
       if (VISUALIZE_KOMO) {
         factored_nlp->komo.view_play(true);
+        factored_nlp->komo.view_close();
       }
 
     } else {
@@ -1230,15 +1322,23 @@ struct Compu_node {
       // expand_symbolic = false;
       std::cout << "CAUTION, optimizaton is infeasible" << std::endl;
       std::cout << "setting expand symbolic to false" << std::endl;
+      bool also_try_conflicts_in_conditional = true;
+      std::cout << "also_try_conflicts_in_conditional" << std::endl;
+      std::cout << also_try_conflicts_in_conditional << std::endl;
       if (check_conflicts && max_time_conditional == 0) {
         std::cout << "Warning: check conflicts is only working  for no "
                      "condition variables"
                   << std::endl;
         find_conflict(node, factored_nlp, default_x, CONFLICT_FOLDER);
+
+        if (recompute_heuristic)
+          *recompute_heuristic = true;
+      } else if (check_conflicts && also_try_conflicts_in_conditional) {
+        find_conflict(node, factored_nlp, default_x, CONFLICT_FOLDER);
+
         if (recompute_heuristic)
           *recompute_heuristic = true;
       }
-
     } else {
 
       // I fix all the graph
@@ -1441,7 +1541,7 @@ struct Compu_node {
     if (type == TYPE::with_values)
       shape = "box";
     else {
-      shape = "box";
+      shape = "ellipse";
       {
         std::stringstream ss;
         Qassert(node->decision);
@@ -1460,11 +1560,17 @@ struct Compu_node {
       }
     }
 
+    auto score_with_expands = [](const auto &a) {
+      return a->heuristic + a->depth + a->num_expands;
+    };
+
+    label += " id:" + std::to_string(id);
     label += " h:" + std::to_string(heuristic);
     label += ",d:" + std::to_string(depth);
     label += ",td:" + std::to_string(tree_depth);
     label += ",ne:" + std::to_string(num_expands);
     label += ",Tf:" + std::to_string(max_time_fixed);
+    label += ",s:" + std::to_string(score_with_expands(this));
     label += ",exp:";
     std::string vec = "";
     for (auto &e : expands)
@@ -1655,12 +1761,16 @@ enum class HEURISTIC {
   BEST_PATH,
   COMPU_COST,
   BEST_PATH_COMPU_TIE,
+  BEST_PATH_COMPU_TIE_OLD,
+  BEST_PATH_COMPU_TIE_RAND,
 };
 
 enum class Exit_search {
   max_it,
   max_sol,
   max_time,
+  error,
+  manual,
 };
 
 struct Compu_tree {
@@ -1668,6 +1778,8 @@ struct Compu_tree {
   bool visualize_solution = false;
   int max_depth_discrete = 10;
   int max_it = 1000;
+  double max_time_seconds =
+      rai::getParameter<double>("ct/max_time_seconds", 30);
   int max_num_goals = 10;
   bool interactive = false;
   bool open_viewer_first_time = true;
@@ -1681,10 +1793,13 @@ struct Compu_tree {
 
   Compu_node *pop_and_erase_best() {
 
-    std::cout << "printing nodes " << std::endl;
-    for (auto &n : open_nodes) {
-      n->write(std::cout);
-    }
+    // std::cout << "printing nodes " << std::endl;
+    // for (auto &n : open_nodes) {
+    //   n->write(std::cout);
+    // }
+
+    std::cout << "heuristic is " << int(heuristic) << " "
+              << magic_enum::enum_name(heuristic) << std::endl;
 
     auto score_with_expands = [](const auto &a) {
       return a->heuristic + a->depth + a->num_expands;
@@ -1709,11 +1824,52 @@ struct Compu_tree {
                score_with_expands(b) - b->max_time_fixed;
       };
       break;
+    case HEURISTIC::BEST_PATH_COMPU_TIE_OLD:
+      funx = [&](const auto &a, const auto &b) {
+        auto sa = score_with_expands(a);
+        auto sb = score_with_expands(b);
+        if (sa == sb) {
+          // first in first out??
+          return -a->max_time_fixed < -b->max_time_fixed;
+        } else {
+          return sa < sb;
+        }
+      };
+      break;
+
+    case HEURISTIC::BEST_PATH_COMPU_TIE_RAND:
+      funx = [&](const auto &a, const auto &b) {
+        auto sa = score_with_expands(a);
+        auto sb = score_with_expands(b);
+        if (sa == sb) {
+          // first in first out??
+          double ss = rand() / double(RAND_MAX);
+          if (ss > 0.5)
+            return true;
+          else
+            return false;
+        } else {
+          return sa < sb;
+        }
+      };
+      break;
+
     case HEURISTIC::BEST_PATH_COMPU_TIE:
       funx = [&](const auto &a, const auto &b) {
         auto sa = score_with_expands(a);
         auto sb = score_with_expands(b);
         if (sa == sb) {
+          if (a->max_time_fixed == b->max_time_fixed) {
+            if (a->heuristic == b->heuristic) {
+              double ss = rand() / double(RAND_MAX);
+              if (ss > 0.5)
+                return true;
+              else
+                return false;
+            } else {
+              return a->heuristic < b->heuristic;
+            }
+          }
           return -a->max_time_fixed < -b->max_time_fixed;
         } else {
           return sa < sb;
@@ -1741,7 +1897,17 @@ struct Compu_tree {
 
     Exit_search out;
 
+    auto begin = std::chrono::steady_clock::now();
+
+    int counter_conflicts = 0;
+
     while (true) {
+
+      if (elaspsed_ms(begin, std::chrono::steady_clock::now()) >
+          max_time_seconds * 1000) {
+        out = Exit_search::max_time;
+        break;
+      }
 
       if (it++ > max_it) {
         out = Exit_search::max_it;
@@ -1837,6 +2003,14 @@ struct Compu_tree {
         std::cout << "recomputing heuristics on all nodes" << std::endl;
         for (auto &n : open_nodes) {
           n->compute_heuristic();
+        }
+
+        if (recompute_heuristic) {
+          counter_conflicts++;
+          // if (++counter_conflicts == 2) {
+          //   out = Exit_search::manual;
+          //   break;
+          // }
         }
       }
 

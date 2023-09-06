@@ -12,7 +12,7 @@ DecisionRule pick {
     (busy Hand) #logic
     (quimgrasp Hand Obj) (stable Hand Obj)  #geometric
     (is_sky From)
-    # (is_sky Obj)! #NOTE: this block the handover
+    (is_sky Obj)! #NOTE: this block the handover
     (is_picked Obj)
     }
 }
@@ -21,7 +21,9 @@ DecisionRule pick {
 
 DecisionRule place {
   Obj, Hand, To,
-  { (is_gripper Hand) (is_object Obj) (on Hand Obj) (is_box To) (is_sky To) (is_picked To)! }
+  { (is_gripper Hand) (is_object Obj) (on Hand Obj) (is_box To) 
+  # (is_sky To)  NOTE: This blocks two objects on the same table
+  (is_picked To)! }
   { (busy Hand)! (on Hand Obj)! (stable Hand Obj)! (quimgrasp Hand Obj)!
     (on To Obj) #logic
     (above Obj To) (stableOn To Obj) #geometric

@@ -71,7 +71,7 @@ DecisionRule pick {
     (busy Hand) #logic
     (quimgrasp Hand Obj) (stable Hand Obj)  #geometric
     (is_sky From)
-    (is_sky Obj)! #NOTE: this block the handover
+    # (is_sky Obj)! #NOTE: this block the handover
     (is_picked Obj)
     }
 }
